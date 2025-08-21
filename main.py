@@ -9,8 +9,10 @@ def plot_history(history):
     avg_ages = [data['average_age'] for data in history]
     survivor_counts = [data['survivor_count'] for data in history]
     avg_discrepancies = [data['average_discrepancy'] for data in history]
+    # cohesion_mean may be None for some generations; map to NaN so matplotlib skips them
+    cohesion_means = [data.get('cohesion_mean') if data.get('cohesion_mean') is not None else float('nan') for data in history]
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 12), sharex=True)
     fig.suptitle('Evolutionary Homeostasis Simulation Results')
 
     # Plot 1: Average Age and Survivor Count
@@ -25,13 +27,21 @@ def plot_history(history):
     ax1b.tick_params('y', colors='r')
 
     # Plot 2: Average Discrepancy (Instability)
-    ax2.plot(generations, avg_discrepancies, 'g-')
-    ax2.set_xlabel('Generation')
-    ax2.set_ylabel('Average Discrepancy (Instability)', color='g')
+    ax2.plot(generations, avg_discrepancies, 'g-', label='Avg Discrepancy')
+    ax2.set_ylabel('Average Discrepancy', color='g')
     ax2.tick_params('y', colors='g')
     ax2.grid(True)
 
+    # Plot 3: Cohesion (monitor-derived metric)
+    ax3.plot(generations, cohesion_means, 'm-', label='Cohesion (mean)')
+    ax3.set_xlabel('Generation')
+    ax3.set_ylabel('Cohesion (0-1)', color='m')
+    ax3.tick_params('y', colors='m')
+    ax3.grid(True)
+
+    # Global legend
     fig.legend(loc='upper right')
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.savefig('simulation_results.png')
     print("\nPlot of simulation results saved to 'simulation_results.png'")
 

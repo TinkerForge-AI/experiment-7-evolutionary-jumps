@@ -3,6 +3,7 @@ import random
 from typing import List
 from organism import Organism
 from oracle import HumanInterfaceOracle
+from monitor import Monitor
 
 class Environment:
     """
@@ -13,6 +14,7 @@ class Environment:
         self.genome_size = genome_size
         self.organisms: List[Organism] = []
         self.oracle = HumanInterfaceOracle()
+        self.monitor = Monitor()  # cohesion & stats
         self.history = {"generation_data": []}
 
     def initialize_population(self):
@@ -33,16 +35,54 @@ class Environment:
         avg_discrepancy = sum(org.cumulative_discrepancy for org in all_organisms) / len(all_organisms)
         survivor_count = len(living_organisms)
 
+        # Monitor-derived metrics (cohesion & accuracy)
+        mon = self.monitor.generation_metrics()
+        cohesion_mean = mon.get("cohesion_mean")
+        cohesion_median = mon.get("cohesion_median")
+        accuracy = mon.get("accuracy")
+        n_interactions = mon.get("n_interactions")
+
+        leap = self.monitor.check_generation_leap(gen, cohesion_mean, accuracy)
+        if leap:
+            print(
+                f"✨ Evolutionary leap @ Gen {leap['generation']}: "
+                f"cohesion={leap['cohesion']:.3f}, acc={leap['accuracy'] if leap['accuracy'] is not None else 'n/a'} "
+                f"(baseline μ={leap['baseline_mean']:.3f}, σ={leap['baseline_std']:.3f}; {leap['reason']})"
+            )
+        
+        self.monitor.log_generation_row({
+            "generation": gen,
+            "average_age": avg_age,
+            "average_discrepancy": avg_discrepancy,
+            "survivor_count": survivor_count,
+            "cohesion_mean": cohesion_mean,
+            "cohesion_median": cohesion_median,
+            "oracle_accuracy": accuracy,
+            "oracle_interactions": n_interactions,
+            "leap_flag": 1 if leap else 0,
+            "z_score": (leap["z_score"] if leap else None),
+        })
+
         # Store data for plotting
         self.history["generation_data"].append({
             "generation": gen,
             "average_age": avg_age,
             "average_discrepancy": avg_discrepancy,
             "survivor_count": survivor_count,
+            "cohesion_mean": cohesion_mean,
+            "cohesion_median": cohesion_median,
+            "oracle_accuracy": accuracy,
+            "oracle_interactions": n_interactions,
         })
         
-        # Print a concise summary for immediate feedback
-        print(f"Avg Age: {avg_age:.2f} | Avg Discrepancy: {avg_discrepancy:.2f} | Survivors: {survivor_count}/{self.population_size}")
+        # Concise summary print
+        coh_str = f"{cohesion_mean:.3f}" if cohesion_mean is not None else "n/a"
+        acc_str = f"{accuracy:.2%}" if accuracy is not None else "n/a"
+        print(
+            f"Avg Age: {avg_age:.2f} | Avg Discrepancy: {avg_discrepancy:.2f} | "
+            f"Survivors: {survivor_count}/{self.population_size} | "
+            f"Cohesion(mean): {coh_str} | Acc: {acc_str} | n={n_interactions}"
+        )
         if living_organisms:
             fittest_survivor = max(living_organisms, key=lambda org: org.age)
             print(f"Fittest Survivor: Age={fittest_survivor.age}, Genome={fittest_survivor.genome}")

@@ -9,9 +9,25 @@ class Organism:
     def __init__(self, genome_size: int):
         # Homeostatic variables with their target ranges and natural decay rates
         self.homeostatic_variables = {
-            # SLOWED DOWN DECAY
-            "compute_load": {"current": 50, "target_range": [30, 95], "decay_rate": -0.34}, # Was -0.8
-            "signal_integrity": {"current": 90, "target_range": [70, 100], "decay_rate": -0.14}, # Was -0.4
+            # The environment will keep pushing these away from their ideal band.
+            # Direction defines what "bad" drift looks like, aligned with resource effects:
+            #  - compute_load reward REDUCES load  -> environment pushes load UP (+1)
+            #  - signal_integrity reward INCREASES -> environment pushes integrity DOWN (-1)
+
+            "compute_load": {
+                # start slightly below the midpoint so environmental pressure will push it upward toward "too high"
+                "current": 45.0,                     # target band midpoint ≈ (30+95)/2 = 62.5; starting near 45 keeps it safe initially
+                "target_range": [30.0, 95.0],
+                "pressure_direction": +1,            # +1 means "push upward" (toward too-high load)
+                "pressure_rate": 0.66,               # tune: how many units per cycle the environment adds
+            },
+            "signal_integrity": {
+                # start slightly above the midpoint so environmental pressure will push it downward toward "too low"
+                "current": 85.0,                     # target band midpoint ≈ (70+100)/2 = 85
+                "target_range": [70.0, 100.0],
+                "pressure_direction": -1,            # -1 means "push downward" (toward low integrity)
+                "pressure_rate": 0.5,               # tune: how many units per cycle the environment subtracts
+            },
         }
         
         # The genome now directly influences behavior.
@@ -46,9 +62,21 @@ class Organism:
         self.age += 1
 
         
-        # Apply natural decay to all variables
+        # Apply environmental pressure that pushes away from ideal band
         for var in self.homeostatic_variables.values():
-            var["current"] += var["decay_rate"]
+            d = var["pressure_direction"]
+            r = var["pressure_rate"]
+
+            # base push
+            delta = d * r
+
+            # if we're already OUTSIDE the band, amplify pressure slightly to simulate harsher conditions
+            lo, hi = var["target_range"]
+            cur = var["current"]
+            if cur < lo or cur > hi:
+                delta *= 1.25  # gentle amplification; tune if needed
+
+            var["current"] = cur + delta
         
         self.cumulative_discrepancy += self.calculate_discrepancy()
 

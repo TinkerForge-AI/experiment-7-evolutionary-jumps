@@ -19,14 +19,10 @@ class EvolutionaryLoop:
 
         for gen in range(self.generations):
             print(f"\n--- Generation {gen+1}/{self.generations} ---")
-            
-            # 1. Run the life simulation for the current generation
-            self.run_generation_cycle()
-            
-            # 2. Log the results of the generation that just lived
-            self.environment.log_generation_data(gen + 1)
+            self.environment.monitor.reset_generation()  # <-- add
 
-            # 3. Evolve the population to create the next generation
+            self.run_generation_cycle()
+            self.environment.log_generation_data(gen + 1)
             self.evolve_population()
         
         print("\nSimulation complete.")
@@ -41,22 +37,26 @@ class EvolutionaryLoop:
                     # Organisms have a chance to interact with the Oracle each cycle
                     if random.random() < 0.25:
                         problem_type, p_data, r_type, correct_ans = self.environment.oracle.present_problem()
-                        
-                        # The organism uses its genome to generate a solution
                         proposed_solution = organism.solve_problem(p_data)
-                        
-                        # Check if the solution is correct (with tolerance for floats)
                         is_correct = False
                         if problem_type in ["math_problem", "logic_problem"]:
-                             if abs(proposed_solution - correct_ans) < 0.1:
+                            if abs(proposed_solution - correct_ans) < 0.1:
                                 is_correct = True
-                        
+
                         if is_correct:
                             amount = self.environment.oracle.get_reward_amount(r_type)
                             organism.gain_resource(r_type, amount)
                         else:
-                            # This method now exists in the Organism class
                             organism.trigger_error()
+
+                        # <-- add this (always record, whether correct or not)
+                        self.environment.monitor.record_interaction(
+                            problem_type=problem_type,
+                            resource_type=r_type,
+                            correct_answer=correct_ans,
+                            proposed_solution=proposed_solution,
+                            is_correct=is_correct
+                        )
     
     def evolve_population(self):
         """Selects the fittest organisms and creates the next generation."""
